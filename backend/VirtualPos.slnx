@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VirtualPos.Api/VirtualPos.Api.csproj" />
+    <Project Path="src/VirtualPos.Application/VirtualPos.Application.csproj" />
+    <Project Path="src/VirtualPos.Domain/VirtualPos.Domain.csproj" />
+    <Project Path="src/VirtualPos.Infrastructure/VirtualPos.Infrastructure.csproj" />
+  </Folder>
+</Solution>
