@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { getBinInfo, type BinInfo } from '@/services/api'
+import { getBinInfo, getInstallments, type BinInfo, type InstallmentOption } from '@/services/api'
 import { formatCardNumber, isValidExpiry, isValidLuhn, onlyDigits } from '@/utils/card'
 
 const amount = 1250
-const amountText = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount)
+
+const currency = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' })
+const formatTry = (value: number) => currency.format(value)
 
 const cardHolder = ref('')
 const cardDigits = ref('')
@@ -15,6 +17,9 @@ const submitted = ref(false)
 
 const binInfo = ref<BinInfo | null>(null)
 const binStatus = ref<'idle' | 'loading' | 'found' | 'notFound' | 'error'>('idle')
+
+const installments = ref<InstallmentOption[]>([])
+const selectedInstallment = ref(1)
 
 const formattedCardNumber = computed(() => formatCardNumber(cardDigits.value))
 
@@ -34,6 +39,9 @@ const binKey = computed(() => {
 
 watch(binKey, async (key) => {
   binInfo.value = null
+  installments.value = []
+  selectedInstallment.value = 1
+
   if (!key) {
     binStatus.value = 'idle'
     return
@@ -45,9 +53,21 @@ watch(binKey, async (key) => {
     if (binKey.value !== key) return // bu arada kullanıcı numarayı değiştirdiyse eski yanıtı yok say
     binInfo.value = info
     binStatus.value = info ? 'found' : 'notFound'
+
+    if (info) {
+      const options = await getInstallments(key, amount)
+      if (binKey.value !== key) return
+      installments.value = options
+    }
   } catch {
     binStatus.value = 'error'
   }
+})
+
+// Seçili taksitin toplam tutarı; taksitler henüz yüklenmediyse sipariş tutarı
+const payableAmount = computed(() => {
+  const option = installments.value.find((o) => o.count === selectedInstallment.value)
+  return option ? option.totalAmount : amount
 })
 
 const errors = computed(() => ({
@@ -62,14 +82,14 @@ const isFormValid = computed(() => Object.values(errors.value).every((e) => !e))
 function onSubmit() {
   submitted.value = true
   if (!isFormValid.value) return
-  alert('Form geçerli. Ödeme akışı Faz 5\'te bağlanacak.')
+  alert(`Form geçerli. ${selectedInstallment.value} taksit, ${formatTry(payableAmount.value)}. Ödeme akışı Faz 5'te bağlanacak.`)
 }
 </script>
 
 <template>
   <main class="checkout">
     <h1>Ödeme</h1>
-    <p class="amount">Sipariş tutarı: <strong>{{ amountText }}</strong></p>
+    <p class="amount">Sipariş tutarı: <strong>{{ formatTry(amount) }}</strong></p>
 
     <form @submit.prevent="onSubmit" novalidate>
       <label>
@@ -105,6 +125,16 @@ function onSubmit() {
         <span v-else>Banka bilgisi alınamadı.</span>
       </div>
 
+      <fieldset v-if="installments.length > 0" class="installments">
+        <legend>Taksit seçenekleri</legend>
+        <label v-for="option in installments" :key="option.count" class="installment-option">
+          <input type="radio" :value="option.count" v-model="selectedInstallment" />
+          <span>{{ option.count === 1 ? 'Tek çekim' : `${option.count} taksit` }}</span>
+          <span v-if="option.count > 1" class="monthly">{{ option.count }} × {{ formatTry(option.monthlyAmount) }}</span>
+          <strong>{{ formatTry(option.totalAmount) }}</strong>
+        </label>
+      </fieldset>
+
       <div class="row">
         <label>
           Ay
@@ -122,7 +152,7 @@ function onSubmit() {
       <small v-if="submitted && errors.expiry">{{ errors.expiry }}</small>
       <small v-if="submitted && errors.cvv">{{ errors.cvv }}</small>
 
-      <button type="submit">{{ amountText }} Öde</button>
+      <button type="submit">{{ formatTry(payableAmount) }} Öde</button>
     </form>
   </main>
 </template>
@@ -137,5 +167,11 @@ input { width: 100%; padding: 10px; font-size: 16px; border: 1px solid #bbb; bor
 .row label { flex: 1; min-width: 0; }
 small { color: #c0392b; }
 .bank-info { display: flex; flex-direction: column; padding: 10px; background: #eef4ff; border-radius: 6px; }
+.installments { border: 1px solid #ddd; border-radius: 6px; padding: 8px 12px; margin: 0; }
+.installments legend { font-size: 14px; padding: 0 4px; }
+.installment-option { flex-direction: row; align-items: center; gap: 10px; padding: 6px 0; cursor: pointer; }
+.installment-option input { width: auto; }
+.installment-option .monthly { color: #666; flex: 1; text-align: right; }
+.installment-option strong { min-width: 90px; text-align: right; margin-left: auto; }
 button { padding: 12px; font-size: 16px; background: #1f6feb; color: white; border: none; border-radius: 6px; cursor: pointer; }
 </style>
