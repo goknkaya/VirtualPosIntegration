@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VirtualPos.Application.Bins;
 using VirtualPos.Application.Notifications;
 using VirtualPos.Application.Payments;
+using VirtualPos.Application.Orders;
 using VirtualPos.Infrastructure.Bins;
 using VirtualPos.Infrastructure.MockBank;
 using VirtualPos.Infrastructure.Notifications;
@@ -27,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<ISmsSender, ConsoleSmsSender>();
         services.AddScoped<IPaymentProvider, MockPaymentProvider>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
 
         return services;
     }

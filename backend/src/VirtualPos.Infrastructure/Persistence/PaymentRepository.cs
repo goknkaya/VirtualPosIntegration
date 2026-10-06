@@ -16,7 +16,7 @@ public class PaymentRepository(VirtualPosDbContext db) : IPaymentRepository
     }
 
     public Task<Payment?> GetByOrderNoAsync(Guid orderNo, CancellationToken ct = default) =>
-        db.Payments.FirstOrDefaultAsync(p => p.OrderNo == orderNo, ct);
+        db.Payments.FirstOrDefaultAsync(p => p.PaymentNo == orderNo, ct);
 
     public Task SaveChangesAsync(CancellationToken ct = default) =>
         db.SaveChangesAsync(ct);

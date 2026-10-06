@@ -92,6 +92,49 @@ namespace VirtualPos.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("VirtualPos.Domain.Entities.Order", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BuyerPhone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nchar(3)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("OrderNo")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderNo")
+                        .IsUnique();
+
+                    b.ToTable("Orders");
+                });
+
             modelBuilder.Entity("VirtualPos.Domain.Entities.Payment", b =>
                 {
                     b.Property<long>("Id")
@@ -151,7 +194,10 @@ namespace VirtualPos.Infrastructure.Persistence.Migrations
                         .HasMaxLength(5)
                         .HasColumnType("nvarchar(5)");
 
-                    b.Property<Guid>("OrderNo")
+                    b.Property<long>("OrderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("PaymentNo")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Provider")
@@ -171,7 +217,9 @@ namespace VirtualPos.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("OrderNo")
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("PaymentNo")
                         .IsUnique();
 
                     b.HasIndex("Status", "CreatedAt");
@@ -214,6 +262,52 @@ namespace VirtualPos.Infrastructure.Persistence.Migrations
                     b.ToTable("PaymentLogs");
                 });
 
+            modelBuilder.Entity("VirtualPos.Infrastructure.MockBank.MockBankCard", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Balance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CardHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("MaskedCardNumber")
+                        .IsRequired()
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CardHash")
+                        .IsUnique();
+
+                    b.ToTable("MockBankCards");
+                });
+
+            modelBuilder.Entity("VirtualPos.Domain.Entities.Payment", b =>
+                {
+                    b.HasOne("VirtualPos.Domain.Entities.Order", "Order")
+                        .WithMany("Payments")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("VirtualPos.Domain.Entities.PaymentLog", b =>
                 {
                     b.HasOne("VirtualPos.Domain.Entities.Payment", "Payment")
@@ -223,6 +317,11 @@ namespace VirtualPos.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("VirtualPos.Domain.Entities.Order", b =>
+                {
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("VirtualPos.Domain.Entities.Payment", b =>

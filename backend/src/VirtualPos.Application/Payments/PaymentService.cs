@@ -41,7 +41,7 @@ public class PaymentService(
 
         var payment = new Payment
         {
-            OrderNo = Guid.NewGuid(),
+            PaymentNo = Guid.NewGuid(),
             Amount = option.TotalAmount,
             Currency = "TRY",
             Installment = (byte)option.Count,
@@ -57,7 +57,7 @@ public class PaymentService(
         await repository.AddAsync(payment, ct);
 
         var initResult = await provider.InitializeThreeDsAsync(new ThreeDsInitRequest(
-            payment.OrderNo,
+            payment.PaymentNo,
             payment.Amount,
             payment.Currency,
             payment.Installment,
@@ -81,7 +81,7 @@ public class PaymentService(
         await repository.SaveChangesAsync(ct);
 
         return initResult.IsSuccess
-            ? new InitializePaymentResult(true, payment.OrderNo, initResult.RedirectUrl, initResult.HtmlContent, null)
+            ? new InitializePaymentResult(true, payment.PaymentNo, initResult.RedirectUrl, initResult.HtmlContent, null)
             : Fail(initResult.ErrorMessage ?? "Ödeme başlatılamadı.");
     }
 
@@ -97,7 +97,7 @@ public class PaymentService(
 
         // Idempotency: zaten sonuçlanmış ödeme ikinci kez işlenmez
         if (payment.Status != PaymentStatus.Pending3DS)
-            return payment.OrderNo;
+            return payment.PaymentNo;
 
         payment.MdStatus = callback.MdStatus;
 
@@ -113,7 +113,7 @@ public class PaymentService(
         }
         else
         {
-            var complete = await provider.CompleteThreeDsAsync(payment.ProviderPaymentId!, payment.OrderNo, ct);
+            var complete = await provider.CompleteThreeDsAsync(payment.ProviderPaymentId!, payment.PaymentNo, ct);
             AddLog(payment, "Complete", new { payment.ProviderPaymentId }, complete, complete.IsSuccess);
 
             if (complete.IsSuccess)
@@ -128,7 +128,7 @@ public class PaymentService(
         }
 
         await repository.SaveChangesAsync(ct);
-        return payment.OrderNo;
+        return payment.PaymentNo;
     }
 
     // 3) Sonuç sayfası için ödemeyi getir
@@ -137,7 +137,7 @@ public class PaymentService(
         var p = await repository.GetByOrderNoAsync(orderNo, ct);
         return p is null
             ? null
-            : new PaymentResultDto(p.OrderNo, p.Status.ToString(), p.Amount, p.Installment,
+            : new PaymentResultDto(p.PaymentNo, p.Status.ToString(), p.Amount, p.Installment,
                 p.MaskedCardNumber, p.BankName, p.ErrorMessage, p.CreatedAt);
     }
 

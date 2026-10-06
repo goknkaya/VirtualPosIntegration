@@ -1,6 +1,7 @@
 using Scalar.AspNetCore;
 using VirtualPos.Application.Installments;
 using VirtualPos.Application.Payments;
+using VirtualPos.Application.Orders;
 using VirtualPos.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -38,12 +39,13 @@ builder.Services.AddInfrastructure(connectionString, apiBaseUrl);
 // Application: iş kuralları
 builder.Services.AddSingleton(new PaymentSettings(apiBaseUrl, frontendBaseUrl));
 builder.Services.AddScoped<InstallmentService>();
+builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<PaymentService>();
 
 var app = builder.Build();
 
 // ---------------------------------------------------------------
-// 3) İstek hattı (middleware) - sıra önemli
+// 3) İstek hattı (middleware)
 // ---------------------------------------------------------------
 if (app.Environment.IsDevelopment())
 {
