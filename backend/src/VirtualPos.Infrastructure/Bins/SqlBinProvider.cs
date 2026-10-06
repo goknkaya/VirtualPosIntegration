@@ -9,16 +9,10 @@ public class SqlBinProvider(VirtualPosDbContext db) : IBinProvider
 {
     public async Task<BinInfoDto?> GetBinInfoAsync(string bin, CancellationToken ct = default)
     {
-        // 6 haneli 454671 -> 45467100 ile 45467199 arası
-        int factor = (int)Math.Pow(10, 8 - bin.Length);
-        int rangeStart = int.Parse(bin) * factor;
-        int rangeEnd = rangeStart + factor - 1;
-
-        var row = await db.BinRanges
-            .AsNoTracking()
-            .Where(b => b.BinRangeMin <= rangeEnd && b.BinRangeMax >= rangeStart)
-            .OrderBy(b => b.BinRangeMax - b.BinRangeMin)
-            .FirstOrDefaultAsync(ct);
+        // Önce kesin sonuç için girilen haneyle ara, bulunamazsa ilk 6 haneyle tekrar dene
+        var row = await FindRowAsync(bin, ct);
+        if (row is null && bin.Length > 6)
+            row = await FindRowAsync(bin[..6], ct);
 
         if (row is null)
             return null;
@@ -30,6 +24,20 @@ public class SqlBinProvider(VirtualPosDbContext db) : IBinProvider
             GetScheme(row),
             GetCardType(row),
             row.BrandName);
+    }
+
+    private Task<BinRange?> FindRowAsync(string bin, CancellationToken ct)
+    {
+        // 6 haneli 454671 -> 45467100 ile 45467199 arası
+        int factor = (int)Math.Pow(10, 8 - bin.Length);
+        int rangeStart = int.Parse(bin) * factor;
+        int rangeEnd = rangeStart + factor - 1;
+
+        return db.BinRanges
+            .AsNoTracking()
+            .Where(b => b.BinRangeMin <= rangeEnd && b.BinRangeMax >= rangeStart)
+            .OrderBy(b => b.BinRangeMax - b.BinRangeMin)
+            .FirstOrDefaultAsync(ct);
     }
 
     private static string GetScheme(BinRange b) =>
