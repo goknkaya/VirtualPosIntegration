@@ -16,7 +16,9 @@ builder.Services.AddCors(options =>
 
 var connectionString = builder.Configuration.GetConnectionString("VirtualPosDb")
     ?? throw new InvalidOperationException("'VirtualPosDb' bağlantı cümlesi bulunamadı.");
-builder.Services.AddInfrastructure(connectionString);
+var apiBaseUrl = builder.Configuration["App:ApiBaseUrl"]
+    ?? throw new InvalidOperationException("'App:ApiBaseUrl' ayarı bulunamadı.");
+builder.Services.AddInfrastructure(connectionString, apiBaseUrl);
 builder.Services.AddScoped<InstallmentService>();
 
 builder.Services.AddOpenApi();
