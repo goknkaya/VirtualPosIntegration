@@ -262,41 +262,6 @@ namespace VirtualPos.Infrastructure.Persistence.Migrations
                     b.ToTable("PaymentLogs");
                 });
 
-            modelBuilder.Entity("VirtualPos.Infrastructure.MockBank.MockBankCard", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Balance")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("CardHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("MaskedCardNumber")
-                        .IsRequired()
-                        .HasMaxLength(19)
-                        .HasColumnType("nvarchar(19)");
-
-                    b.Property<string>("PhoneNumber")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CardHash")
-                        .IsUnique();
-
-                    b.ToTable("MockBankCards");
-                });
-
             modelBuilder.Entity("VirtualPos.Domain.Entities.Payment", b =>
                 {
                     b.HasOne("VirtualPos.Domain.Entities.Order", "Order")

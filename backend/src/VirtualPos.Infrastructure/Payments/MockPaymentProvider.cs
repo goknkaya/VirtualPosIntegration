@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using VirtualPos.Application.Notifications;
+using VirtualPos.Application.Orders;
 using VirtualPos.Application.Payments;
 using VirtualPos.Infrastructure.MockBank;
 
@@ -13,9 +11,6 @@ public class MockPaymentProvider(
     ISmsSender smsSender,
     MockBankSettings settings) : IPaymentProvider
 {
-    // Demo: kart sahibinin bankada kayıtlı telefonu
-    private const string RegisteredPhone = "0555 *** ** 34";
-
     public string Name => "MockBank";
 
     public async Task<ThreeDsInitResult> InitializeThreeDsAsync(ThreeDsInitRequest request, CancellationToken ct = default)
@@ -26,16 +21,18 @@ public class MockPaymentProvider(
         store.Add(new MockBankSession
         {
             Token = token,
-            OrderNo = request.OrderNo,
+            PaymentNo = request.PaymentNo,
             Amount = request.Amount,
             MaskedCardNumber = CardMasker.Mask(request.CardNumber),
+            MaskedPhone = OrderService.MaskPhone(request.BuyerPhone),
             CallbackUrl = request.CallbackUrl,
             OtpCode = otpCode,
             ExpiresAt = DateTime.UtcNow.AddMinutes(3)
         });
 
+        // Demo: gerçek bankada kod kartın kayıtlı telefonuna gider; burada alıcının telefonu kullanılıyor
         await smsSender.SendAsync(
-            RegisteredPhone,
+            request.BuyerPhone,
             $"{request.Amount:N2} TL tutarındaki ödemeniz için doğrulama kodunuz: {otpCode}",
             ct);
 
@@ -48,11 +45,11 @@ public class MockPaymentProvider(
             ErrorMessage: null);
     }
 
-    public Task<ThreeDsCompleteResult> CompleteThreeDsAsync(string providerPaymentId, Guid orderNo, CancellationToken ct = default)
+    public Task<ThreeDsCompleteResult> CompleteThreeDsAsync(string providerPaymentId, Guid paymentNo, CancellationToken ct = default)
     {
         var session = store.Get(providerPaymentId);
 
-        if (session is null || session.OrderNo != orderNo)
+        if (session is null || session.PaymentNo != paymentNo)
             return Task.FromResult(new ThreeDsCompleteResult(false, "PAYMENT_NOT_FOUND", "Ödeme bulunamadı."));
 
         // Banka, callback'te ne yazdığına değil kendi kaydına bakar

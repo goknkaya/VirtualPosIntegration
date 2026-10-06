@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using VirtualPos.Domain.Entities;
-using VirtualPos.Infrastructure.MockBank;
 
 namespace VirtualPos.Infrastructure.Persistence;
 
@@ -10,7 +9,6 @@ public class VirtualPosDbContext(DbContextOptions<VirtualPosDbContext> options) 
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<PaymentLog> PaymentLogs => Set<PaymentLog>();
     public DbSet<BinRange> BinRanges => Set<BinRange>();
-    public DbSet<MockBankCard> MockBankCards => Set<MockBankCard>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -52,16 +50,6 @@ public class VirtualPosDbContext(DbContextOptions<VirtualPosDbContext> options) 
         {
             e.HasKey(l => l.Id);
             e.Property(l => l.Step).HasMaxLength(30);
-        });
-
-        modelBuilder.Entity<MockBankCard>(e =>
-        {
-            e.HasKey(c => c.Id);
-            e.HasIndex(c => c.CardHash).IsUnique();
-            e.Property(c => c.CardHash).HasMaxLength(64);
-            e.Property(c => c.MaskedCardNumber).HasMaxLength(19);
-            e.Property(c => c.PhoneNumber).HasMaxLength(20);
-            e.Property(c => c.Balance).HasPrecision(18, 2);
         });
 
         // BKM BIN listesi: tabloyu BKM scripti kurar, EF sadece okur

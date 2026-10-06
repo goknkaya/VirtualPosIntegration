@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using VirtualPos.Application.Payments;
 using VirtualPos.Domain.Entities;
 
@@ -15,8 +12,10 @@ public class PaymentRepository(VirtualPosDbContext db) : IPaymentRepository
         return Task.CompletedTask;
     }
 
-    public Task<Payment?> GetByOrderNoAsync(Guid orderNo, CancellationToken ct = default) =>
-        db.Payments.FirstOrDefaultAsync(p => p.PaymentNo == orderNo, ct);
+    public Task<Payment?> GetByPaymentNoAsync(Guid paymentNo, CancellationToken ct = default) =>
+        db.Payments
+          .Include(p => p.Order)
+          .FirstOrDefaultAsync(p => p.PaymentNo == paymentNo, ct);
 
     public Task SaveChangesAsync(CancellationToken ct = default) =>
         db.SaveChangesAsync(ct);

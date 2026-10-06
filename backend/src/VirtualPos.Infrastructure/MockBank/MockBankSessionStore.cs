@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 
 namespace VirtualPos.Infrastructure.MockBank;
 
@@ -12,9 +9,10 @@ public record MockBankSettings(string ApiBaseUrl);
 public class MockBankSession
 {
     public required string Token { get; init; }
-    public required Guid OrderNo { get; init; }
+    public required Guid PaymentNo { get; init; }
     public required decimal Amount { get; init; }
     public required string MaskedCardNumber { get; init; }
+    public required string MaskedPhone { get; init; }
     public required string CallbackUrl { get; init; }
     public required string OtpCode { get; init; }
     public required DateTime ExpiresAt { get; init; }

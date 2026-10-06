@@ -1,24 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Text.Json;
+﻿using System.Text.Json;
 using VirtualPos.Application.Bins;
 using VirtualPos.Application.Installments;
+using VirtualPos.Application.Orders;
 using VirtualPos.Domain.Entities;
 using VirtualPos.Domain.Enums;
 
 namespace VirtualPos.Application.Payments;
 
 public class PaymentService(
-    IPaymentRepository repository,
+    IPaymentRepository payments,
+    IOrderRepository orders,
     IBinProvider binProvider,
     InstallmentService installmentService,
     IPaymentProvider provider,
     PaymentSettings settings)
 {
-    // Demo: gerçekte tutar sipariş tablosundan okunur, asla istemciden alınmaz
-    public const decimal OrderAmount = 1250m;
-
     // 1) Ödemeyi başlat
     public async Task<InitializePaymentResult> InitializeAsync(InitializePaymentRequest request, CancellationToken ct = default)
     {
@@ -28,13 +24,19 @@ public class PaymentService(
         if (validationError is not null)
             return Fail(validationError);
 
+        // Tutar her zaman siparişten gelir
+        var order = await orders.GetByOrderNoAsync(request.OrderNo, ct);
+        if (order is null)
+            return Fail("Sipariş bulunamadı.");
+        if (order.Status == OrderStatus.Paid)
+            return Fail("Bu sipariş zaten ödenmiş.");
+
         var bin = cardNumber[..8];
         var binInfo = await binProvider.GetBinInfoAsync(bin, ct);
         if (binInfo is null)
             return Fail("Kartın bankası bulunamadı.");
 
-        // Taksitli toplam tutar sunucuda hesaplanır
-        var options = await installmentService.GetOptionsAsync(bin, OrderAmount, ct);
+        var options = await installmentService.GetOptionsAsync(bin, order.Amount, ct);
         var option = options?.FirstOrDefault(o => o.Count == request.Installment);
         if (option is null)
             return Fail("Seçilen taksit bu kart için geçerli değil.");
@@ -42,8 +44,9 @@ public class PaymentService(
         var payment = new Payment
         {
             PaymentNo = Guid.NewGuid(),
+            Order = order,
             Amount = option.TotalAmount,
-            Currency = "TRY",
+            Currency = order.Currency,
             Installment = (byte)option.Count,
             CardHolderName = request.CardHolderName.Trim(),
             MaskedCardNumber = CardMasker.Mask(cardNumber),
@@ -54,7 +57,7 @@ public class PaymentService(
             Status = PaymentStatus.Pending3DS,
             CreatedAt = DateTime.UtcNow
         };
-        await repository.AddAsync(payment, ct);
+        await payments.AddAsync(payment, ct);
 
         var initResult = await provider.InitializeThreeDsAsync(new ThreeDsInitRequest(
             payment.PaymentNo,
@@ -66,10 +69,11 @@ public class PaymentService(
             request.ExpireMonth,
             request.ExpireYear,
             request.Cvc,
+            order.BuyerPhone,
             CallbackUrl: $"{settings.ApiBaseUrl}/api/payments/3ds/callback"), ct);
 
         AddLog(payment, "Initialize",
-            new { payment.MaskedCardNumber, payment.Amount, payment.Installment },
+            new { order.OrderNo, payment.MaskedCardNumber, payment.Amount, payment.Installment },
             new { initResult.IsSuccess, initResult.ProviderPaymentId, initResult.ErrorCode, initResult.ErrorMessage },
             initResult.IsSuccess);
 
@@ -78,7 +82,7 @@ public class PaymentService(
         else
             MarkFailed(payment, initResult.ErrorCode, initResult.ErrorMessage);
 
-        await repository.SaveChangesAsync(ct);
+        await payments.SaveChangesAsync(ct);
 
         return initResult.IsSuccess
             ? new InitializePaymentResult(true, payment.PaymentNo, initResult.RedirectUrl, initResult.HtmlContent, null)
@@ -88,10 +92,10 @@ public class PaymentService(
     // 2) Bankadan dönüşü işle
     public async Task<Guid?> HandleCallbackAsync(ThreeDsCallback callback, CancellationToken ct = default)
     {
-        if (!Guid.TryParse(callback.ConversationId, out var orderNo))
+        if (!Guid.TryParse(callback.ConversationId, out var paymentNo))
             return null;
 
-        var payment = await repository.GetByOrderNoAsync(orderNo, ct);
+        var payment = await payments.GetByPaymentNoAsync(paymentNo, ct);
         if (payment is null)
             return null;
 
@@ -111,6 +115,11 @@ public class PaymentService(
         {
             MarkFailed(payment, "3DS_FAILED", "3D Secure doğrulaması başarısız oldu.");
         }
+        else if (payment.Order.Status == OrderStatus.Paid)
+        {
+            // Aynı sipariş başka bir ödemeyle zaten ödendiyse ikinci kez para çekme
+            MarkFailed(payment, "ORDER_ALREADY_PAID", "Sipariş başka bir ödemeyle zaten ödendi.");
+        }
         else
         {
             var complete = await provider.CompleteThreeDsAsync(payment.ProviderPaymentId!, payment.PaymentNo, ct);
@@ -120,6 +129,8 @@ public class PaymentService(
             {
                 payment.Status = PaymentStatus.Succeeded;
                 payment.UpdatedAt = DateTime.UtcNow;
+                payment.Order.Status = OrderStatus.Paid;
+                payment.Order.PaidAt = DateTime.UtcNow;
             }
             else
             {
@@ -127,17 +138,17 @@ public class PaymentService(
             }
         }
 
-        await repository.SaveChangesAsync(ct);
+        await payments.SaveChangesAsync(ct);
         return payment.PaymentNo;
     }
 
     // 3) Sonuç sayfası için ödemeyi getir
-    public async Task<PaymentResultDto?> GetAsync(Guid orderNo, CancellationToken ct = default)
+    public async Task<PaymentResultDto?> GetAsync(Guid paymentNo, CancellationToken ct = default)
     {
-        var p = await repository.GetByOrderNoAsync(orderNo, ct);
+        var p = await payments.GetByPaymentNoAsync(paymentNo, ct);
         return p is null
             ? null
-            : new PaymentResultDto(p.PaymentNo, p.Status.ToString(), p.Amount, p.Installment,
+            : new PaymentResultDto(p.PaymentNo, p.Order.OrderNo, p.Status.ToString(), p.Amount, p.Installment,
                 p.MaskedCardNumber, p.BankName, p.ErrorMessage, p.CreatedAt);
     }
 

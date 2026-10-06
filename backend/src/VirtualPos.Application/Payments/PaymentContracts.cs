@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace VirtualPos.Application.Payments;
 
-namespace VirtualPos.Application.Payments;
-
-// Vue'dan gelen ödeme isteği (tutar yok: sunucuda belirlenir)
+// Vue'dan gelen ödeme isteği: tutar yok, hangi siparişin ödendiği var
 public record InitializePaymentRequest(
+    Guid OrderNo,
     string CardHolderName,
     string CardNumber,
     string ExpireMonth,
@@ -16,7 +13,7 @@ public record InitializePaymentRequest(
 // Vue'ya dönen cevap: kullanıcı nereye yönlendirilecek
 public record InitializePaymentResult(
     bool IsSuccess,
-    Guid? OrderNo,
+    Guid? PaymentNo,
     string? RedirectUrl,
     string? HtmlContent,
     string? ErrorMessage);
@@ -32,6 +29,7 @@ public class ThreeDsCallback
 
 // Sonuç sayfası için ödeme bilgisi
 public record PaymentResultDto(
+    Guid PaymentNo,
     Guid OrderNo,
     string Status,
     decimal Amount,

@@ -20,14 +20,14 @@ public class PaymentsController(PaymentService paymentService, PaymentSettings s
     [HttpPost("3ds/callback")]
     public async Task<IActionResult> Callback([FromForm] ThreeDsCallback callback, CancellationToken ct)
     {
-        var orderNo = await paymentService.HandleCallbackAsync(callback, ct);
-        return Redirect($"{settings.FrontendBaseUrl}/result/{orderNo?.ToString() ?? "unknown"}");
+        var paymentNo = await paymentService.HandleCallbackAsync(callback, ct);
+        return Redirect($"{settings.FrontendBaseUrl}/result/{paymentNo?.ToString() ?? "unknown"}");
     }
 
-    [HttpGet("{orderNo:guid}")]
-    public async Task<IActionResult> Get(Guid orderNo, CancellationToken ct)
+    [HttpGet("{paymentNo:guid}")]
+    public async Task<IActionResult> Get(Guid paymentNo, CancellationToken ct)
     {
-        var payment = await paymentService.GetAsync(orderNo, ct);
+        var payment = await paymentService.GetAsync(paymentNo, ct);
         return payment is null
             ? NotFound(new { message = "Ödeme bulunamadı." })
             : Ok(payment);
