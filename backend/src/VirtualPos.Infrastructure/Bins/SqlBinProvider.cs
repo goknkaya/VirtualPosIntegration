@@ -23,7 +23,8 @@ public class SqlBinProvider(VirtualPosDbContext db) : IBinProvider
             row.BankEftCode,
             GetScheme(row),
             GetCardType(row),
-            row.BrandName);
+            row.BrandName,
+            row.IsCreditCard);
     }
 
     private Task<BinRange?> FindRowAsync(string bin, CancellationToken ct)

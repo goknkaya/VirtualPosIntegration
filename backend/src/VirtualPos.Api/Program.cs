@@ -1,3 +1,4 @@
+using VirtualPos.Application.Installments;
 using VirtualPos.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,6 +17,7 @@ builder.Services.AddCors(options =>
 var connectionString = builder.Configuration.GetConnectionString("VirtualPosDb")
     ?? throw new InvalidOperationException("'VirtualPosDb' bağlantı cümlesi bulunamadı.");
 builder.Services.AddInfrastructure(connectionString);
+builder.Services.AddScoped<InstallmentService>();
 
 builder.Services.AddOpenApi();
 

@@ -10,5 +10,6 @@ namespace VirtualPos.Application.Bins
     string? BankEftCode,
     string CardScheme,
     string CardType,
-    string? BrandName);
+    string? BrandName,
+    bool IsCreditCard);
 }
