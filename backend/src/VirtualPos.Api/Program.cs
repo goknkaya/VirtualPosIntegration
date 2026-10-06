@@ -1,34 +1,54 @@
+using Scalar.AspNetCore;
 using VirtualPos.Application.Installments;
+using VirtualPos.Application.Payments;
 using VirtualPos.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// ---------------------------------------------------------------
+// 1) Ayarlar (appsettings.Development.json)
+// ---------------------------------------------------------------
+var connectionString = builder.Configuration.GetConnectionString("VirtualPosDb")
+    ?? throw new InvalidOperationException("'VirtualPosDb' bağlantı cümlesi bulunamadı.");
 
+var apiBaseUrl = builder.Configuration["App:ApiBaseUrl"]
+    ?? throw new InvalidOperationException("'App:ApiBaseUrl' ayarı bulunamadı.");
+
+var frontendBaseUrl = builder.Configuration["App:FrontendBaseUrl"]
+    ?? throw new InvalidOperationException("'App:FrontendBaseUrl' ayarı bulunamadı.");
+
+// ---------------------------------------------------------------
+// 2) Servis kayıtları (Dependency Injection)
+// ---------------------------------------------------------------
+
+// Web API altyapısı
 builder.Services.AddControllers();
+builder.Services.AddOpenApi();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(frontendBaseUrl)
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
 
-var connectionString = builder.Configuration.GetConnectionString("VirtualPosDb")
-    ?? throw new InvalidOperationException("'VirtualPosDb' bağlantı cümlesi bulunamadı.");
-var apiBaseUrl = builder.Configuration["App:ApiBaseUrl"]
-    ?? throw new InvalidOperationException("'App:ApiBaseUrl' ayarı bulunamadı.");
+// Infrastructure: veritabanı, BIN, sahte banka, SMS
 builder.Services.AddInfrastructure(connectionString, apiBaseUrl);
-builder.Services.AddScoped<InstallmentService>();
 
-builder.Services.AddOpenApi();
+// Application: iş kuralları
+builder.Services.AddSingleton(new PaymentSettings(apiBaseUrl, frontendBaseUrl));
+builder.Services.AddScoped<InstallmentService>();
+builder.Services.AddScoped<PaymentService>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ---------------------------------------------------------------
+// 3) İstek hattı (middleware) - sıra önemli
+// ---------------------------------------------------------------
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();

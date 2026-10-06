@@ -26,6 +26,7 @@ public static class DependencyInjection
         services.AddSingleton<MockBankSessionStore>();
         services.AddScoped<ISmsSender, ConsoleSmsSender>();
         services.AddScoped<IPaymentProvider, MockPaymentProvider>();
+        services.AddScoped<IPaymentRepository, PaymentRepository>();
 
         return services;
     }
