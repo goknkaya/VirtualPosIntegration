@@ -1,3 +1,5 @@
+using VirtualPos.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -10,6 +12,11 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
+
+var connectionString = builder.Configuration.GetConnectionString("VirtualPosDb")
+    ?? throw new InvalidOperationException("'VirtualPosDb' bağlantı cümlesi bulunamadı.");
+builder.Services.AddInfrastructure(connectionString);
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -21,9 +28,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseCors("Frontend");
-
 app.UseAuthorization();
 
 app.MapControllers();
