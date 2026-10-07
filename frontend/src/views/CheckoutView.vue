@@ -119,6 +119,7 @@ const errors = computed(() => ({
 
 const isFormValid = computed(() => Object.values(errors.value).every((e) => !e))
 
+// ---------- Ödeme ----------
 async function onSubmit() {
   submitted.value = true
   submitError.value = ''
@@ -135,7 +136,7 @@ async function onSubmit() {
       cvc: cvv.value,
       installment: selectedInstallment.value,
     })
-    
+
     if (result.redirectUrl) {
       // Sahte banka: bir adrese yönlendir
       window.location.href = result.redirectUrl
@@ -147,9 +148,9 @@ async function onSubmit() {
     } else {
       throw new Error('Banka yönlendirme bilgisi alınamadı.')
     }
+    // Başarılı durumda sayfadan çıkılıyor; butonu tekrar açmıyoruz (çift tıklamayı önler)
   } catch (error) {
     submitError.value = error instanceof Error ? error.message : 'Ödeme başlatılamadı.'
-  } finally {
     submitting.value = false
   }
 }
