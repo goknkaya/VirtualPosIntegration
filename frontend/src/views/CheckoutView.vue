@@ -1,19 +1,60 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { getBinInfo, getInstallments, type BinInfo, type InstallmentOption } from '@/services/api'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import {
+  getBinInfo,
+  getInstallments,
+  getOrder,
+  initializePayment,
+  type BinInfo,
+  type InstallmentOption,
+  type Order,
+} from '@/services/api'
 import { formatCardNumber, isValidExpiry, isValidLuhn, onlyDigits } from '@/utils/card'
 
-const amount = 1250
+const route = useRoute()
+const orderNo = route.params.orderNo as string
 
 const currency = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' })
 const formatTry = (value: number) => currency.format(value)
 
+// ---------- Sipariş ----------
+const order = ref<Order | null>(null)
+const pageStatus = ref<'loading' | 'ready' | 'error'>('loading')
+const pageError = ref('')
+const orderAmount = computed(() => order.value?.amount ?? 0)
+
+// Sayfa açılınca siparişi yükle
+onMounted(async () => {
+  try {
+    const result = await getOrder(orderNo)
+    if (!result) {
+      pageError.value = 'Sipariş bulunamadı.'
+      pageStatus.value = 'error'
+      return
+    }
+    if (result.status === 'Paid') {
+      pageError.value = 'Bu sipariş zaten ödenmiş.'
+      pageStatus.value = 'error'
+      return
+    }
+    order.value = result
+    pageStatus.value = 'ready'
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : 'Sipariş yüklenemedi.'
+    pageStatus.value = 'error'
+  }
+})
+
+// ---------- Form ----------
 const cardHolder = ref('')
 const cardDigits = ref('')
 const expiryMonth = ref('')
 const expiryYear = ref('')
 const cvv = ref('')
 const submitted = ref(false)
+const submitting = ref(false)
+const submitError = ref('')
 
 const binInfo = ref<BinInfo | null>(null)
 const binStatus = ref<'idle' | 'loading' | 'found' | 'notFound' | 'error'>('idle')
@@ -50,12 +91,12 @@ watch(binKey, async (key) => {
   binStatus.value = 'loading'
   try {
     const info = await getBinInfo(key)
-    if (binKey.value !== key) return // bu arada kullanıcı numarayı değiştirdiyse eski yanıtı yok say
+    if (binKey.value !== key) return
     binInfo.value = info
     binStatus.value = info ? 'found' : 'notFound'
 
     if (info) {
-      const options = await getInstallments(key, amount)
+      const options = await getInstallments(key, orderAmount.value)
       if (binKey.value !== key) return
       installments.value = options
     }
@@ -64,10 +105,9 @@ watch(binKey, async (key) => {
   }
 })
 
-// Seçili taksitin toplam tutarı; taksitler henüz yüklenmediyse sipariş tutarı
 const payableAmount = computed(() => {
   const option = installments.value.find((o) => o.count === selectedInstallment.value)
-  return option ? option.totalAmount : amount
+  return option ? option.totalAmount : orderAmount.value
 })
 
 const errors = computed(() => ({
@@ -79,81 +119,116 @@ const errors = computed(() => ({
 
 const isFormValid = computed(() => Object.values(errors.value).every((e) => !e))
 
-function onSubmit() {
+async function onSubmit() {
   submitted.value = true
+  submitError.value = ''
   if (!isFormValid.value) return
-  alert(`Form geçerli. ${selectedInstallment.value} taksit, ${formatTry(payableAmount.value)}. Ödeme akışı Faz 5'te bağlanacak.`)
+
+  submitting.value = true
+  try {
+    const result = await initializePayment({
+      orderNo,
+      cardHolderName: cardHolder.value.trim(),
+      cardNumber: cardDigits.value,
+      expireMonth: expiryMonth.value,
+      expireYear: expiryYear.value,
+      cvc: cvv.value,
+      installment: selectedInstallment.value,
+    })
+    
+    if (!result.redirectUrl) {
+      throw new Error('Banka yönlendirme adresi alınamadı.')
+    }
+
+    window.location.href = result.redirectUrl
+  } catch (error) {
+    submitError.value = error instanceof Error ? error.message : 'Ödeme başlatılamadı.'
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
 <template>
   <main class="checkout">
-    <h1>Ödeme</h1>
-    <p class="amount">Sipariş tutarı: <strong>{{ formatTry(amount) }}</strong></p>
+    <p v-if="pageStatus === 'loading'">Sipariş yükleniyor...</p>
 
-    <form @submit.prevent="onSubmit" novalidate>
-      <label>
-        Kart üzerindeki isim
-        <input v-model="cardHolder" autocomplete="cc-name" placeholder="Ad Soyad" />
-        <small v-if="submitted && errors.cardHolder">{{ errors.cardHolder }}</small>
-      </label>
+    <div v-else-if="pageStatus === 'error'" class="page-error">
+      <p>{{ pageError }}</p>
+      <RouterLink to="/">Yeni sipariş oluştur</RouterLink>
+    </div>
 
-      <label>
-        Kart numarası
-        <input
-          :value="formattedCardNumber"
-          @input="onCardInput"
-          inputmode="numeric"
-          autocomplete="cc-number"
-          placeholder="0000 0000 0000 0000"
-        />
-        <small v-if="submitted && errors.cardNumber">{{ errors.cardNumber }}</small>
-      </label>
+    <template v-else>
+      <h1>Ödeme</h1>
+      <p class="amount">Sipariş tutarı: <strong>{{ formatTry(orderAmount) }}</strong></p>
 
-      <div v-if="binStatus !== 'idle'" class="bank-info">
-        <span v-if="binStatus === 'loading'">Banka sorgulanıyor...</span>
-        <template v-else-if="binStatus === 'found' && binInfo">
-          <strong>{{ binInfo.bankName }}</strong>
-          <span>
-            {{ binInfo.cardScheme }} · {{ binInfo.cardType }}
-            <template v-if="binInfo.brandName && binInfo.brandName !== 'Marka Yok'">
-              · {{ binInfo.brandName }}
-            </template>
-          </span>
-        </template>
-        <span v-else-if="binStatus === 'notFound'">Bu kartın bankası bulunamadı.</span>
-        <span v-else>Banka bilgisi alınamadı.</span>
-      </div>
-
-      <fieldset v-if="installments.length > 0" class="installments">
-        <legend>Taksit seçenekleri</legend>
-        <label v-for="option in installments" :key="option.count" class="installment-option">
-          <input type="radio" :value="option.count" v-model="selectedInstallment" />
-          <span>{{ option.count === 1 ? 'Tek çekim' : `${option.count} taksit` }}</span>
-          <span v-if="option.count > 1" class="monthly">{{ option.count }} × {{ formatTry(option.monthlyAmount) }}</span>
-          <strong>{{ formatTry(option.totalAmount) }}</strong>
-        </label>
-      </fieldset>
-
-      <div class="row">
+      <form @submit.prevent="onSubmit" novalidate>
         <label>
-          Ay
-          <input v-model="expiryMonth" inputmode="numeric" maxlength="2" placeholder="AA" />
+          Kart üzerindeki isim
+          <input v-model="cardHolder" autocomplete="cc-name" placeholder="Ad Soyad" />
+          <small v-if="submitted && errors.cardHolder">{{ errors.cardHolder }}</small>
         </label>
-        <label>
-          Yıl
-          <input v-model="expiryYear" inputmode="numeric" maxlength="2" placeholder="YY" />
-        </label>
-        <label>
-          CVV
-          <input v-model="cvv" type="password" inputmode="numeric" maxlength="4" autocomplete="cc-csc" />
-        </label>
-      </div>
-      <small v-if="submitted && errors.expiry">{{ errors.expiry }}</small>
-      <small v-if="submitted && errors.cvv">{{ errors.cvv }}</small>
 
-      <button type="submit">{{ formatTry(payableAmount) }} Öde</button>
-    </form>
+        <label>
+          Kart numarası
+          <input
+            :value="formattedCardNumber"
+            @input="onCardInput"
+            inputmode="numeric"
+            autocomplete="cc-number"
+            placeholder="0000 0000 0000 0000"
+          />
+          <small v-if="submitted && errors.cardNumber">{{ errors.cardNumber }}</small>
+        </label>
+
+        <div v-if="binStatus !== 'idle'" class="bank-info">
+          <span v-if="binStatus === 'loading'">Banka sorgulanıyor...</span>
+          <template v-else-if="binStatus === 'found' && binInfo">
+            <strong>{{ binInfo.bankName }}</strong>
+            <span>
+              {{ binInfo.cardScheme }} · {{ binInfo.cardType }}
+              <template v-if="binInfo.brandName && binInfo.brandName !== 'Marka Yok'">
+                · {{ binInfo.brandName }}
+              </template>
+            </span>
+          </template>
+          <span v-else-if="binStatus === 'notFound'">Bu kartın bankası bulunamadı.</span>
+          <span v-else>Banka bilgisi alınamadı.</span>
+        </div>
+
+        <fieldset v-if="installments.length > 0" class="installments">
+          <legend>Taksit seçenekleri</legend>
+          <label v-for="option in installments" :key="option.count" class="installment-option">
+            <input type="radio" :value="option.count" v-model="selectedInstallment" />
+            <span>{{ option.count === 1 ? 'Tek çekim' : `${option.count} taksit` }}</span>
+            <span v-if="option.count > 1" class="monthly">{{ option.count }} × {{ formatTry(option.monthlyAmount) }}</span>
+            <strong>{{ formatTry(option.totalAmount) }}</strong>
+          </label>
+        </fieldset>
+
+        <div class="row">
+          <label>
+            Ay
+            <input v-model="expiryMonth" inputmode="numeric" maxlength="2" placeholder="AA" />
+          </label>
+          <label>
+            Yıl
+            <input v-model="expiryYear" inputmode="numeric" maxlength="2" placeholder="YY" />
+          </label>
+          <label>
+            CVV
+            <input v-model="cvv" type="password" inputmode="numeric" maxlength="4" autocomplete="cc-csc" />
+          </label>
+        </div>
+        <small v-if="submitted && errors.expiry">{{ errors.expiry }}</small>
+        <small v-if="submitted && errors.cvv">{{ errors.cvv }}</small>
+        <small v-if="submitError">{{ submitError }}</small>
+
+        <button type="submit" :disabled="submitting">
+          {{ submitting ? 'Bankaya yönlendiriliyor...' : `${formatTry(payableAmount)} Öde` }}
+        </button>
+      </form>
+    </template>
   </main>
 </template>
 
@@ -174,4 +249,6 @@ small { color: #c0392b; }
 .installment-option .monthly { color: #666; flex: 1; text-align: right; }
 .installment-option strong { min-width: 90px; text-align: right; margin-left: auto; }
 button { padding: 12px; font-size: 16px; background: #1f6feb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+button:disabled { opacity: 0.6; cursor: default; }
+.page-error { padding: 16px; background: #fdecea; border-radius: 6px; }
 </style>
