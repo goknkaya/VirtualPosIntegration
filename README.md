@@ -12,6 +12,8 @@ iyzico benzeri bir ödeme akışı: kart numarası girilirken bankayı tespit ed
 - **Sipariş yapısı:** Tutar sunucuda tutulur; ödeme sayfası yalnızca sipariş numarasıyla çalışır.
 - **Zaman aşımı:** 5 dakika içinde tamamlanmayan ödemeler arka plan servisiyle otomatik kapatılır.
 - **İz kaydı:** Her ödeme adımı (`Initialize`, `Callback`, `Complete`, `Timeout`) `PaymentLogs` tablosuna yazılır.
+- **İki ödeme sağlayıcısı:** Simülasyon bankası (MockBank) ve **iyzico sandbox**; ayar dosyasından tek satırla değiştirilir.
+- **Tanınmayan kart:** BIN listesinde bulunmayan kartlar (ör. yabancı kartlar) reddedilmez, yalnızca tek çekim sunulur.
 
 ## Mimari
 
@@ -26,7 +28,7 @@ backend/src
 frontend                      Vue 3 + TypeScript + Vue Router
 ```
 
-Ödeme sağlayıcısı `IPaymentProvider` arayüzünün arkasındadır. Şu an `MockPaymentProvider` (simülasyon bankası) kullanılır; gerçek bir sağlayıcı eklemek yeni bir sınıf ve `DependencyInjection.cs`'te tek satırlık değişikliktir.
+Ödeme sağlayıcısı `IPaymentProvider` arayüzünün arkasındadır. İki uygulaması vardır: `MockPaymentProvider` (simülasyon bankası) ve `IyzicoPaymentProvider` (iyzico sandbox, resmi `Iyzipay` NuGet paketi). Hangisinin kullanılacağı `appsettings.json` içindeki `Payment:Provider` ayarıyla seçilir; iş kuralları (`PaymentService`) iki durumda da aynıdır.
 
 ## Güvenlik ilkeleri
 
@@ -57,7 +59,23 @@ dotnet ef database update --project src/VirtualPos.Infrastructure --startup-proj
 
 > Bu liste BKM verisini yayımlayan üçüncü taraf açık kaynak bir projedir; BKM ile ilişkisi yoktur. Demo amaçlı kullanılmıştır, canlı ortamda BIN verisi BKM'den kurum adına alınmalıdır.
 
-### 3. Çalıştırma
+### 3. Ödeme sağlayıcısı
+
+`backend/src/VirtualPos.Api/appsettings.json`:
+
+```json
+"Payment": { "Provider": "MockBank" }   // veya "Iyzico"
+```
+
+**iyzico için** [sandbox hesabı](https://sandbox-merchant.iyzipay.com) açıp API anahtarlarını User Secrets'a kaydedin (anahtarlar repoya girmez):
+
+```powershell
+cd backend/src/VirtualPos.Api
+dotnet user-secrets set "Iyzico:ApiKey" "<sandbox-api-key>"
+dotnet user-secrets set "Iyzico:SecretKey" "<sandbox-secret-key>"
+```
+
+### 4. Çalıştırma
 
 ```powershell
 # Backend (https://localhost:7177, API dokümantasyonu: /scalar/v1)
@@ -74,10 +92,12 @@ npm run dev
 
 1. `http://localhost:5173` adresinde tutar ve telefon girip **Ödemeye geç**.
 2. Test kartlarından birini girin; banka bilgisi ve taksitler otomatik görünür.
-3. **Öde** → simülasyon bankasının sayfasında doğrulama kodunu girin (kod sayfada "Demo" kutusunda ve API konsolunda görünür).
+3. **Öde** → bankanın 3D sayfasında doğrulama kodunu girin.
+   - **MockBank:** kod sayfadaki "Demo" kutusunda ve API konsolunda görünür.
+   - **iyzico:** iyzico'nun sandbox 3D sayfası açılır.
 4. Sonuç sayfasında ödemenin durumunu görün.
 
-### Test kartları
+### Test kartları (MockBank)
 
 Herhangi bir ileri tarih (ör. `12/30`) ve 3 haneli CVV ile:
 
@@ -90,6 +110,18 @@ Herhangi bir ileri tarih (ör. `12/30`) ve 3 haneli CVV ile:
 | Halkbank | Troy, kredi | `6587 8406 0000 0019` |
 | VakıfBank | Visa, banka kartı | `4234 7800 0000 0015` |
 | QNB | Mastercard, banka kartı | `5343 1907 0000 0015` |
+
+### Test kartları (iyzico)
+
+iyzico sandbox yalnızca [iyzico test kartlarını](https://docs.iyzico.com/ek-bilgiler/test-kartlari) kabul eder. Örnekler:
+
+| Senaryo | Kart numarası |
+| --- | --- |
+| Başarılı (Halkbank, kredi) | `5528 7900 0000 0008` |
+| Başarılı (HSBC, kredi) | `5504 7200 0000 0003` |
+| Yetersiz bakiye hatası | `4111 1111 1111 1129` |
+
+> Sandbox hesabında taksit tanımlı olmadığı için iyzico modunda yalnızca tek çekim çalışır; taksitli akış MockBank modunda gösterilir.
 
 ## API
 
@@ -105,7 +137,8 @@ Herhangi bir ileri tarih (ör. `12/30`) ve 3 haneli CVV ile:
 
 ## Yol haritası
 
-- [ ] iyzico sandbox entegrasyonu (`IyzicoPaymentProvider`)
+- [x] iyzico sandbox entegrasyonu (`IyzicoPaymentProvider`)
+- [ ] Taksit seçeneklerini iyzico taksit sorgulama servisinden (`InstallmentInfo`) almak
 - [ ] İptal ve iade
 - [ ] Webhook ile ödeme sonucu bildirimi
 - [ ] İşlem listesi ekranı

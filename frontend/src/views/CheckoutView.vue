@@ -199,7 +199,7 @@ async function onSubmit() {
               </template>
             </span>
           </template>
-          <span v-else-if="binStatus === 'notFound'">Bu kartın bankası bulunamadı.</span>
+          <span v-else-if="binStatus === 'notFound'">Kartın bankası tanınamadı; tek çekim ile ödeme yapılabilir.</span>
           <span v-else>Banka bilgisi alınamadı.</span>
         </div>
 

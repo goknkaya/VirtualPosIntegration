@@ -21,11 +21,10 @@ namespace VirtualPos.Application.Installments
             string bin, decimal amount, CancellationToken ct = default)
         {
             var binInfo = await binProvider.GetBinInfoAsync(bin, ct);
-            if (binInfo is null)
-                return null;
 
-            // Kredi kartı değilse sadece tek çekim
-            var plans = binInfo.IsCreditCard ? Plans : Plans[..1];
+            // Sadece BKM listesinde tanınan kredi kartlarına taksit; banka kartı ve
+            // listede olmayan kartlar (ör. yabancı kartlar) sadece tek çekim
+            var plans = binInfo?.IsCreditCard == true ? Plans : Plans[..1];
 
             return plans
                 .Select(p =>

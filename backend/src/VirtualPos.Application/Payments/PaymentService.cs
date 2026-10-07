@@ -33,10 +33,9 @@ public class PaymentService(
 
         var bin = cardNumber[..8];
         var binInfo = await binProvider.GetBinInfoAsync(bin, ct);
-        if (binInfo is null)
-            return Fail("Kartın bankası bulunamadı.");
 
         var options = await installmentService.GetOptionsAsync(bin, order.Amount, ct);
+
         var option = options?.FirstOrDefault(o => o.Count == request.Installment);
         if (option is null)
             return Fail("Seçilen taksit bu kart için geçerli değil.");
@@ -51,8 +50,8 @@ public class PaymentService(
             CardHolderName = request.CardHolderName.Trim(),
             MaskedCardNumber = CardMasker.Mask(cardNumber),
             BinNumber = bin,
-            BankEftCode = binInfo.BankEftCode,
-            BankName = binInfo.BankName,
+            BankEftCode = binInfo?.BankEftCode,
+            BankName = binInfo?.BankName,
             Provider = provider.Name,
             Status = PaymentStatus.Pending3DS,
             CreatedAt = DateTime.UtcNow
