@@ -5,6 +5,11 @@ const router = createRouter({
   routes: [
     {
       path: '/',
+      name: 'order',
+      component: () => import('../views/OrderView.vue'),
+    },
+    {
+      path: '/odeme/:orderNo',
       name: 'checkout',
       component: () => import('../views/CheckoutView.vue'),
     },
