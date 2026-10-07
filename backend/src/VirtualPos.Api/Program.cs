@@ -4,6 +4,7 @@ using VirtualPos.Application.Payments;
 using VirtualPos.Application.Orders;
 using VirtualPos.Api.BackgroundJobs;
 using VirtualPos.Infrastructure;
+using VirtualPos.Infrastructure.Payments;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +19,19 @@ var apiBaseUrl = builder.Configuration["App:ApiBaseUrl"]
 
 var frontendBaseUrl = builder.Configuration["App:FrontendBaseUrl"]
     ?? throw new InvalidOperationException("'App:FrontendBaseUrl' ayarı bulunamadı.");
+
+var paymentProvider = builder.Configuration["Payment:Provider"] ?? "MockBank";
+
+IyzicoSettings? iyzicoSettings = null;
+if (paymentProvider.Equals("Iyzico", StringComparison.OrdinalIgnoreCase))
+{
+    iyzicoSettings = new IyzicoSettings(
+        builder.Configuration["Iyzico:ApiKey"]
+            ?? throw new InvalidOperationException("'Iyzico:ApiKey' bulunamadı. dotnet user-secrets ile ekleyin."),
+        builder.Configuration["Iyzico:SecretKey"]
+            ?? throw new InvalidOperationException("'Iyzico:SecretKey' bulunamadı. dotnet user-secrets ile ekleyin."),
+        builder.Configuration["Iyzico:BaseUrl"] ?? "https://sandbox-api.iyzipay.com");
+}
 
 // ---------------------------------------------------------------
 // 2) Servis kayıtları (Dependency Injection)
@@ -35,7 +49,7 @@ builder.Services.AddCors(options =>
 });
 
 // Infrastructure: veritabanı, BIN, sahte banka, SMS
-builder.Services.AddInfrastructure(connectionString, apiBaseUrl);
+builder.Services.AddInfrastructure(connectionString, apiBaseUrl, paymentProvider, iyzicoSettings);
 
 // Application: iş kuralları
 builder.Services.AddSingleton(new PaymentSettings(apiBaseUrl, frontendBaseUrl));

@@ -136,11 +136,17 @@ async function onSubmit() {
       installment: selectedInstallment.value,
     })
     
-    if (!result.redirectUrl) {
-      throw new Error('Banka yönlendirme adresi alınamadı.')
+    if (result.redirectUrl) {
+      // Sahte banka: bir adrese yönlendir
+      window.location.href = result.redirectUrl
+    } else if (result.htmlContent) {
+      // iyzico: bankanın 3DS sayfasını tarayıcıya yaz (içindeki form kendini otomatik gönderir)
+      document.open()
+      document.write(result.htmlContent)
+      document.close()
+    } else {
+      throw new Error('Banka yönlendirme bilgisi alınamadı.')
     }
-
-    window.location.href = result.redirectUrl
   } catch (error) {
     submitError.value = error instanceof Error ? error.message : 'Ödeme başlatılamadı.'
   } finally {

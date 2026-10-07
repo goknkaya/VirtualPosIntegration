@@ -188,8 +188,8 @@ public class PaymentService(
     private static void MarkFailed(Payment p, string? code, string? message)
     {
         p.Status = PaymentStatus.Failed;
-        p.ErrorCode = code;
-        p.ErrorMessage = message;
+        p.ErrorCode = code is { Length: > 50 } ? code[..50] : code;
+        p.ErrorMessage = message is { Length: > 500 } ? message[..500] : message;
         p.UpdatedAt = DateTime.UtcNow;
     }
 
