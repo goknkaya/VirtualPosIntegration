@@ -44,7 +44,7 @@ public class OrderService(IOrderRepository repository)
         return order is null ? null : ToDto(order);
     }
 
-    // "0507 105 75 99", "5071057599", "+90 507 105 75 99" -> "05071057599"
+    // "0555 111 22 33", "5551112233", "+90 555 111 22 33" -> "05551112233"
     public static string? NormalizePhone(string? input)
     {
         var digits = new string((input ?? string.Empty).Where(char.IsAsciiDigit).ToArray());
@@ -57,12 +57,14 @@ public class OrderService(IOrderRepository repository)
         return digits.Length == 11 && digits.StartsWith("05") ? digits : null;
     }
 
-    // "05071057599" -> "0507*****99"
+    // "05551112233" -> "0555*****33"
     public static string MaskPhone(string phone) =>
         phone.Length < 7 ? phone : $"{phone[..4]}{new string('*', phone.Length - 6)}{phone[^2..]}";
 
+    // UTC olarak dönüştürülmüş tarih için:
     private static OrderDto ToDto(Order o) =>
-        new(o.OrderNo, o.Amount, o.Currency, MaskPhone(o.BuyerPhone), o.Status.ToString(), o.CreatedAt);
+    new(o.OrderNo, o.Amount, o.Currency, MaskPhone(o.BuyerPhone), o.Status.ToString(),
+        DateTime.SpecifyKind(o.CreatedAt, DateTimeKind.Utc));
 
     private static CreateOrderResult Fail(string message) => new(false, null, message);
 }

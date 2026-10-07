@@ -7,4 +7,5 @@ public interface IPaymentRepository
     Task AddAsync(Payment payment, CancellationToken ct = default);
     Task<Payment?> GetByPaymentNoAsync(Guid paymentNo, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);
+    Task<List<Payment>> GetPendingOlderThanAsync(DateTime cutoffUtc, CancellationToken ct = default);
 }

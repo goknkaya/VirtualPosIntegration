@@ -2,6 +2,7 @@ using Scalar.AspNetCore;
 using VirtualPos.Application.Installments;
 using VirtualPos.Application.Payments;
 using VirtualPos.Application.Orders;
+using VirtualPos.Api.BackgroundJobs;
 using VirtualPos.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -41,6 +42,7 @@ builder.Services.AddSingleton(new PaymentSettings(apiBaseUrl, frontendBaseUrl));
 builder.Services.AddScoped<InstallmentService>();
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<PaymentService>();
+builder.Services.AddHostedService<PaymentTimeoutJob>();
 
 var app = builder.Build();
 

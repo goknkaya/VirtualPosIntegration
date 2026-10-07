@@ -149,7 +149,28 @@ public class PaymentService(
         return p is null
             ? null
             : new PaymentResultDto(p.PaymentNo, p.Order.OrderNo, p.Status.ToString(), p.Amount, p.Installment,
-                p.MaskedCardNumber, p.BankName, p.ErrorMessage, p.CreatedAt);
+                p.MaskedCardNumber, p.BankName, p.ErrorMessage,
+                DateTime.SpecifyKind(p.CreatedAt, DateTimeKind.Utc));
+    }
+
+    // 4) Süresinde tamamlanmayan ödemeleri kapat (arka plan işi çağırır)
+    public static readonly TimeSpan PendingTimeout = TimeSpan.FromMinutes(5);
+
+    public async Task<int> ExpirePendingPaymentsAsync(CancellationToken ct = default)
+    {
+        var cutoff = DateTime.UtcNow - PendingTimeout;
+        var expired = await payments.GetPendingOlderThanAsync(cutoff, ct);
+
+        foreach (var payment in expired)
+        {
+            MarkFailed(payment, "TIMEOUT", "3D Secure doğrulaması süresinde tamamlanmadı.");
+            AddLog(payment, "Timeout", new { CutoffUtc = cutoff }, null, false);
+        }
+
+        if (expired.Count > 0)
+            await payments.SaveChangesAsync(ct);
+
+        return expired.Count;
     }
 
     private static string? Validate(InitializePaymentRequest r, string cardNumber)
