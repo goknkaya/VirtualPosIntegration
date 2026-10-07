@@ -1,6 +1,1 @@
 @VirtualPos.Api_HostAddress = http://localhost:5118
-
-GET {{VirtualPos.Api_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
