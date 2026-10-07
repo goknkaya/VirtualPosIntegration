@@ -5,6 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Iyzipay" Version="2.1.80" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
   </ItemGroup>
 
