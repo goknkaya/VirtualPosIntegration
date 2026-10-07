@@ -70,9 +70,19 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Sunucuda Vue'nun derlenmiş dosyaları wwwroot klasöründen sunulur.
+// Bilgisayarımda wwwroot yok, Vue 5173'te ayrı çalışmaya devam eder.
+app.UseDefaultFiles();   // "/" adresinde index.html'i açar
+app.UseStaticFiles();    // wwwroot içindeki dosyaları (js, css) gönderir
+
 app.UseCors("Frontend");
 app.UseAuthorization();
 
 app.MapControllers();
+
+// /odeme/..., /result/... gibi Vue sayfaları sunucuda dosya olarak yok;
+// bu istekleri index.html'e yönlendirir, sayfayı Vue Router açar.
+app.MapFallbackToFile("index.html");
 
 app.Run();
