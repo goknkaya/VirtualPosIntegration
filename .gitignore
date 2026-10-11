@@ -483,3 +483,4 @@ $RECYCLE.BIN/
 
 publish/
 backend/src/VirtualPos.Api/wwwroot/
+release/
